@@ -75,7 +75,7 @@ TS_Point FT6236::getPoint(uint8_t n)
     }
     else
     {
-        return TS_Point(touchX[n], touchY[n], 1);
+        return TS_Point(touchX[n], touchY[n], touchWeight[n]);
     }
 }
 
@@ -91,7 +91,8 @@ void FT6236::readData(void)
     for (uint8_t i = 0; i < 16; i++)
         i2cdat[i] = Wire.read();
 
-    touches = i2cdat[0x02];
+    gesture = i2cdat[FT6236_REG_GESTURE];
+    touches = i2cdat[FT6236_REG_NUMTOUCHES];
     if ((touches > 2) || (touches == 0))
     {
         touches = 0;
@@ -99,6 +100,7 @@ void FT6236::readData(void)
 
     for (uint8_t i = 0; i < 2; i++)
     {
+        event[i] = i2cdat[0x03 + i * 6] >> 6;
         touchX[i] = i2cdat[0x03 + i * 6] & 0x0F;
         touchX[i] <<= 8;
         touchX[i] |= i2cdat[0x04 + i * 6];
@@ -106,6 +108,8 @@ void FT6236::readData(void)
         touchY[i] <<= 8;
         touchY[i] |= i2cdat[0x06 + i * 6];
         touchID[i] = i2cdat[0x05 + i * 6] >> 4;
+        touchWeight[i] = i2cdat[0x07 + i * 6];
+        touchMisc[i] = i2cdat[0x08 + i * 6];
     }
 }
 
@@ -168,4 +172,98 @@ bool TS_Point::operator==(TS_Point p1)
 bool TS_Point::operator!=(TS_Point p1)
 {
     return ((p1.x != x) || (p1.y != y) || (p1.z != z));
+}
+
+/* Get the gesture */
+FT6236::TS_Gesture FT6236::getGesture(void)
+{
+    return (FT6236::TS_Gesture)gesture;
+}
+
+/* Set the power mode */
+bool FT6236::setPowerMode(bool mode)
+{
+    uint8_t reg = readRegister8(FT6236_REG_MODE);
+    if (mode)
+    {
+        reg &= ~0x01;
+    }
+    else
+    {
+        reg |= 0x01;
+    }
+    writeRegister8(FT6236_REG_MODE, reg);
+    if (readRegister8(FT6236_REG_MODE) != reg)
+    {
+        return false;
+    }
+    return true;
+}
+
+/* Set the interrupt mode */
+bool FT6236::setInterruptMode(bool mode)
+{
+    uint8_t reg = readRegister8(FT6236_REG_INTERRUPTMODE);
+    if (mode)
+    {
+        reg |= 0x01;
+    }
+    else
+    {
+        reg &= ~0x01;
+    }
+    writeRegister8(FT6236_REG_INTERRUPTMODE, reg);
+    if (readRegister8(FT6236_REG_INTERRUPTMODE) != reg)
+    {
+        return false;
+    }
+    return true;
+}
+
+/* Set the touch rate */
+bool FT6236::setTouchRate(uint8_t rate)
+{
+    writeRegister8(FT6236_REG_POINTRATE, rate);
+    if (readRegister8(FT6236_REG_POINTRATE) != rate)
+    {
+        return false;
+    }
+    return true;
+}
+
+/* Set the filter coefficient */
+bool FT6236::setFilterCoefficient(uint8_t coef)
+{
+    writeRegister8(FT6236_REG_FILTERCOEF, coef);
+    if (readRegister8(FT6236_REG_FILTERCOEF) != coef)
+    {
+        return false;
+    }
+    return true;
+}
+
+/* Set the touch threshold */
+bool FT6236::setTouchThreshold(uint8_t thresh)
+{
+    writeRegister8(FT6236_REG_THRESHHOLD, thresh);
+    if (readRegister8(FT6236_REG_THRESHHOLD) != thresh)
+    {
+        return false;
+    }
+    return true;
+}
+
+/* Set the monitor time */
+bool FT6236::setMonitorTime(uint8_t periodActive, uint8_t periodMonitor, uint8_t enterTime)
+{
+    writeRegister8(FT6236_REG_TIMEENTERMONI, periodActive);
+    writeRegister8(FT6236_REG_PERIODACTIVE, periodMonitor);
+    writeRegister8(FT6236_REG_PERIODMONITOR, enterTime);
+    if ((readRegister8(FT6236_REG_TIMEENTERMONI) != periodActive) ||
+        (readRegister8(FT6236_REG_PERIODACTIVE) != periodMonitor) ||
+        (readRegister8(FT6236_REG_PERIODMONITOR) != enterTime))
+    {
+        return false;
+    }
+    return true;
 }
